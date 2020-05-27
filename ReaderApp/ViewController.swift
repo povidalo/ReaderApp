@@ -13,22 +13,22 @@ import VisionKit
 class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
 
     var textRecognitionRequest = VNRecognizeTextRequest()
-    @IBOutlet fileprivate weak var imageView: UIImageView!
+    @IBOutlet fileprivate weak var imageView: TouchableImageView!
     
     private let textRecognitionWorkQueue = DispatchQueue(label: "TextRecognitionQueue",
     qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
     
     private lazy var annotationOverlayView: UIView = {
-      precondition(isViewLoaded)
-      let annotationOverlayView = UIView(frame: .zero)
-      annotationOverlayView.translatesAutoresizingMaskIntoConstraints = false
-      return annotationOverlayView
+        precondition(isViewLoaded)
+        let annotationOverlayView = UIView(frame: .zero)
+        annotationOverlayView.translatesAutoresizingMaskIntoConstraints = false
+        return annotationOverlayView
     }()
     
-
     private var scaledImageWidth: CGFloat = 0.0
     private var scaledImageHeight: CGFloat = 0.0
     private var latestObservations: [VNRecognizedTextObservation:Bool]?
+    private var latestObservationViews: [VNRecognizedTextObservation:UIView]?
     
     let documentCameraViewController = VNDocumentCameraViewController()
     override func viewDidLoad() {
@@ -44,6 +44,8 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
           annotationOverlayView.trailingAnchor.constraint(equalTo: imageView.trailingAnchor),
           annotationOverlayView.bottomAnchor.constraint(equalTo: imageView.bottomAnchor),
         ])
+        imageView.onTounchCallback = onImageViewTouch
+        imageView.onTounchCancelCallback = onImageViewCancelTouch
     }
     
     @IBAction func showCamera(_ sender: Any) {
@@ -100,32 +102,48 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         } catch {
             showError(message: error.localizedDescription)
         }
+        
+        createObservationViews()
         updateObservations()
     }
     
-    private func updateObservations() {
+    private func createObservationViews() {
         guard let observations = latestObservations else { return }
         
         for view in annotationOverlayView.subviews {
             view.removeFromSuperview()
         }
-        
-        for (observation, selected) in observations {
+        var views = [VNRecognizedTextObservation:UIView]()
+        for (observation, _) in observations {
             if observation.topCandidates(1).first == nil {
                 continue
             }
             
             let rectangleView = UIView(frame: getObservationOnImageViewPos(observation))
             rectangleView.layer.cornerRadius = 3
+            views[observation] = rectangleView
+            annotationOverlayView.addSubview(rectangleView)
+        }
+        latestObservationViews = views
+    }
+    
+    private func updateObservations() {
+        guard let observations = latestObservations else { return }
+        guard let observationViews = latestObservationViews else { return }
+        
+        for (observation, selected) in observations {
+            guard let rectangleView = observationViews[observation] else { continue }
             if selected {
                 rectangleView.alpha = 0.3
                 rectangleView.backgroundColor = UIColor.red
+                rectangleView.layer.borderWidth = 0
+                rectangleView.layer.borderColor = UIColor.clear.cgColor
             } else {
+                rectangleView.alpha = 1
+                rectangleView.backgroundColor = UIColor.clear
                 rectangleView.layer.borderWidth = 1
                 rectangleView.layer.borderColor = UIColor.red.cgColor
             }
-            
-            annotationOverlayView.addSubview(rectangleView)
         }
     }
     
@@ -136,6 +154,20 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         let box = observation.boundingBox
         
         return CGRect(x: box.minX * scaledImageWidth + paddingX, y: (1 - box.maxY) * scaledImageHeight + paddingY, width: box.width * scaledImageWidth, height: box.height * scaledImageHeight)
+    }
+    
+    private func getObservationAtPoint(_ point: CGPoint?) -> VNRecognizedTextObservation? {
+        guard let observations = latestObservations else { return nil }
+        
+        if point != nil {
+            for (observation, _) in observations {
+                let box = getObservationOnImageViewPos(observation)
+                if box.contains(point!) {
+                    return observation
+                }
+            }
+        }
+        return nil
     }
     
     private func presentPhotoPicker(sourceType: UIImagePickerController.SourceType) {
@@ -193,6 +225,33 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         )
         resultsAlertController.popoverPresentationController?.sourceView = self.view
         present(resultsAlertController, animated: true, completion: nil)
+    }
+    
+    private var latestTouch: CGPoint?
+    private var latestSelectionState: Bool?
+    
+    private func onImageViewTouch(_ point: CGPoint) {
+        guard var observations = latestObservations else { return }
+        
+        let lastObservation = getObservationAtPoint(latestTouch)
+        let newObservation = getObservationAtPoint(point)
+        
+        if lastObservation != newObservation && newObservation != nil {
+            let selectionState = latestSelectionState ?? !(observations[newObservation!] ?? false)
+            if selectionState != observations[newObservation!] {
+                observations[newObservation!] = selectionState
+                latestObservations = observations
+                updateObservations()
+            }
+            latestSelectionState = selectionState
+        }
+        
+        latestTouch = point
+    }
+    
+    private func onImageViewCancelTouch() {
+        latestTouch = nil
+        latestSelectionState = nil
     }
 }
 
