@@ -13,23 +13,40 @@ import VisionKit
 class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
 
     var textRecognitionRequest = VNRecognizeTextRequest()
-    @IBOutlet weak var text: UITextView!
-    var recognizedText: String!
+    @IBOutlet fileprivate weak var imageView: UIImageView!
     
     private let textRecognitionWorkQueue = DispatchQueue(label: "TextRecognitionQueue",
     qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
+    
+    private lazy var annotationOverlayView: UIView = {
+      precondition(isViewLoaded)
+      let annotationOverlayView = UIView(frame: .zero)
+      annotationOverlayView.translatesAutoresizingMaskIntoConstraints = false
+      return annotationOverlayView
+    }()
+    
+
+    private var scaledImageWidth: CGFloat = 0.0
+    private var scaledImageHeight: CGFloat = 0.0
+    private var latestObservations: [VNRecognizedTextObservation:Bool]?
     
     let documentCameraViewController = VNDocumentCameraViewController()
     override func viewDidLoad() {
         super.viewDidLoad()
         self.navigationController?.setNavigationBarHidden(false, animated: true)
-        self.title = "Text"
         
         documentCameraViewController.delegate = self
+        
+        imageView.addSubview(annotationOverlayView)
+        NSLayoutConstraint.activate([
+          annotationOverlayView.topAnchor.constraint(equalTo: imageView.topAnchor),
+          annotationOverlayView.leadingAnchor.constraint(equalTo: imageView.leadingAnchor),
+          annotationOverlayView.trailingAnchor.constraint(equalTo: imageView.trailingAnchor),
+          annotationOverlayView.bottomAnchor.constraint(equalTo: imageView.bottomAnchor),
+        ])
     }
     
     @IBAction func showCamera(_ sender: Any) {
-        
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             presentPhotoPicker(sourceType: .photoLibrary)
             return
@@ -46,49 +63,79 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         photoSourcePicker.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
         
         present(photoSourcePicker, animated: true)
-        
-        
     }
     
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-        var images = [CGImage]()
-        for pageIndex in 0 ..< scan.pageCount {
-            let image = scan.imageOfPage(at: pageIndex)
-            if let cgImage = image.cgImage {
-                images.append(cgImage)
+        if scan.pageCount > 0 {
+            processImage(image: scan.imageOfPage(at: 0))
+            controller.navigationController?.popViewController(animated: true)
+            if scan.pageCount > 1 {
+                showError(message: "Selected more than 1 image. Only first one will be processed.")
             }
+        } else {
+            showError(message: "No images selected")
         }
-        recognizeText(from: images)
-        controller.navigationController?.popViewController(animated: true)
     }
     
-    func recognizeText(from images: [CGImage]) {
-        self.recognizedText = ""
-        var tmp = ""
-        let textRecognitionRequest = VNRecognizeTextRequest { (request, error) in
+    func recognizeText(from image: CGImage) {
+        let textRecognitionRequest = VNRecognizeTextRequest { [weak self] (request, error) in
+            guard let strongSelf = self else { return }
+            
             guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                print("The observations are of an unexpected type.")
+                strongSelf.latestObservations = nil
+                strongSelf.showError(message: "The observations are of an unexpected type.")
                 return
             }
-            // Concatenate the recognised text from all the observations.
-            let maximumCandidates = 1
+            
+            var latestObservations = [VNRecognizedTextObservation:Bool]()
             for observation in observations {
-                guard let candidate = observation.topCandidates(maximumCandidates).first else { continue }
-                tmp += candidate.string + "\n"
+                latestObservations[observation] = false
             }
+            strongSelf.latestObservations = latestObservations
         }
         textRecognitionRequest.recognitionLevel = .accurate
-        for image in images {
-            let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
-            
-            do {
-                try requestHandler.perform([textRecognitionRequest])
-            } catch {
-                print(error)
-            }
-            tmp += "\n\n"
+        let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
+        do {
+            try requestHandler.perform([textRecognitionRequest])
+        } catch {
+            showError(message: error.localizedDescription)
         }
-        self.text.text = tmp
+        updateObservations()
+    }
+    
+    private func updateObservations() {
+        guard let observations = latestObservations else { return }
+        
+        for view in annotationOverlayView.subviews {
+            view.removeFromSuperview()
+        }
+        
+        for (observation, selected) in observations {
+            if observation.topCandidates(1).first == nil {
+                continue
+            }
+            
+            let rectangleView = UIView(frame: getObservationOnImageViewPos(observation))
+            rectangleView.layer.cornerRadius = 3
+            if selected {
+                rectangleView.alpha = 0.3
+                rectangleView.backgroundColor = UIColor.red
+            } else {
+                rectangleView.layer.borderWidth = 1
+                rectangleView.layer.borderColor = UIColor.red.cgColor
+            }
+            
+            annotationOverlayView.addSubview(rectangleView)
+        }
+    }
+    
+    private func getObservationOnImageViewPos(_ observation: VNRecognizedTextObservation) -> CGRect {
+        let paddingX = (CGFloat(imageView.bounds.size.width) - CGFloat(scaledImageWidth)) / 2.0
+        let paddingY = (CGFloat(imageView.bounds.size.height) - CGFloat(scaledImageHeight)) / 2.0
+        
+        let box = observation.boundingBox
+        
+        return CGRect(x: box.minX * scaledImageWidth + paddingX, y: (1 - box.maxY) * scaledImageHeight + paddingY, width: box.width * scaledImageWidth, height: box.height * scaledImageHeight)
     }
     
     private func presentPhotoPicker(sourceType: UIImagePickerController.SourceType) {
@@ -97,6 +144,56 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         picker.sourceType = sourceType
         present(picker, animated: true)
     }
+    
+    private func updateImageView(with image: UIImage) {
+        let orientation = UIApplication.shared.windows.first?.windowScene?.interfaceOrientation ?? .unknown
+        switch orientation {
+            case .landscapeLeft, .landscapeRight:
+                scaledImageHeight = imageView.bounds.size.height
+                scaledImageWidth = image.size.width * scaledImageHeight / image.size.height
+            default:
+                scaledImageWidth = imageView.bounds.size.width
+                scaledImageHeight = image.size.height * scaledImageWidth / image.size.width
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var scaledImage = image.scaledImage(with: CGSize(width: self.scaledImageWidth, height: self.scaledImageHeight))
+            scaledImage = scaledImage ?? image
+            guard let finalImage = scaledImage else { return }
+            DispatchQueue.main.async {
+                self.imageView.image = finalImage
+            }
+        }
+    }
+    
+    private func processImage(image: UIImage?) {
+        guard let uiImage = image else {
+            showError(message: "Couldn't load image!")
+            return
+        }
+        
+        guard let cgImage = uiImage.cgImage else {
+            showError(message: "Couldn't retreive image!")
+            return
+        }
+        
+        updateImageView(with: uiImage)
+        recognizeText(from: cgImage)
+    }
+    
+    private func showError(message: String) {
+        let resultsAlertController = UIAlertController(
+            title: "Error",
+            message: message,
+            preferredStyle: .actionSheet
+        )
+        resultsAlertController.addAction(
+            UIAlertAction(title: "OK", style: .destructive) { _ in
+                resultsAlertController.dismiss(animated: true, completion: nil)
+            }
+        )
+        resultsAlertController.popoverPresentationController?.sourceView = self.view
+        present(resultsAlertController, animated: true, completion: nil)
+    }
 }
 
 extension ViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -104,11 +201,7 @@ extension ViewController: UIImagePickerControllerDelegate, UINavigationControlle
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
         picker.dismiss(animated: true)
         
-        guard let uiImage = info[UIImagePickerController.InfoKey.originalImage] as? UIImage else {
-            fatalError("Error!")
-        }
-        
-        recognizeText(from: [uiImage.cgImage!])
+        processImage(image: info[UIImagePickerController.InfoKey.originalImage] as? UIImage)
     }
 }
 
