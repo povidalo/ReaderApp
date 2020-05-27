@@ -16,7 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		ED764E822472E86D00DCEC10 /* TestScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED764E822472E86D00DCEC10 /* ReaderApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReaderApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED764E852472E86D00DCEC10 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		ED764E872472E86D00DCEC10 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		ED764E892472E86D00DCEC10 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -40,7 +40,7 @@
 		ED764E792472E86D00DCEC10 = {
 			isa = PBXGroup;
 			children = (
-				ED764E842472E86D00DCEC10 /* TestScanner */,
+				ED764E842472E86D00DCEC10 /* ReaderApp */,
 				ED764E832472E86D00DCEC10 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -48,12 +48,12 @@
 		ED764E832472E86D00DCEC10 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				ED764E822472E86D00DCEC10 /* TestScanner.app */,
+				ED764E822472E86D00DCEC10 /* ReaderApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		ED764E842472E86D00DCEC10 /* TestScanner */ = {
+		ED764E842472E86D00DCEC10 /* ReaderApp */ = {
 			isa = PBXGroup;
 			children = (
 				ED764E852472E86D00DCEC10 /* AppDelegate.swift */,
@@ -64,15 +64,15 @@
 				ED764E902472E87100DCEC10 /* LaunchScreen.storyboard */,
 				ED764E932472E87100DCEC10 /* Info.plist */,
 			);
-			path = TestScanner;
+			path = ReaderApp;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		ED764E812472E86D00DCEC10 /* TestScanner */ = {
+		ED764E812472E86D00DCEC10 /* ReaderApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = ED764E962472E87100DCEC10 /* Build configuration list for PBXNativeTarget "TestScanner" */;
+			buildConfigurationList = ED764E962472E87100DCEC10 /* Build configuration list for PBXNativeTarget "ReaderApp" */;
 			buildPhases = (
 				ED764E7E2472E86D00DCEC10 /* Sources */,
 				ED764E7F2472E86D00DCEC10 /* Frameworks */,
@@ -82,9 +82,9 @@
 			);
 			dependencies = (
 			);
-			name = TestScanner;
-			productName = TestScanner;
-			productReference = ED764E822472E86D00DCEC10 /* TestScanner.app */;
+			name = ReaderApp;
+			productName = ReaderApp;
+			productReference = ED764E822472E86D00DCEC10 /* ReaderApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -102,7 +102,7 @@
 					};
 				};
 			};
-			buildConfigurationList = ED764E7D2472E86D00DCEC10 /* Build configuration list for PBXProject "TestScanner" */;
+			buildConfigurationList = ED764E7D2472E86D00DCEC10 /* Build configuration list for PBXProject "ReaderApp" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -115,7 +115,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				ED764E812472E86D00DCEC10 /* TestScanner */,
+				ED764E812472E86D00DCEC10 /* ReaderApp */,
 			);
 		};
 /* End PBXProject section */
@@ -285,13 +285,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 77UT86MNKK;
-				INFOPLIST_FILE = TestScanner/Info.plist;
+				DEVELOPMENT_TEAM = FPJM4NGXTD;
+				INFOPLIST_FILE = ReaderApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = samax.TestScanner;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bova.ReaderApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -303,13 +304,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 77UT86MNKK;
-				INFOPLIST_FILE = TestScanner/Info.plist;
+				DEVELOPMENT_TEAM = FPJM4NGXTD;
+				INFOPLIST_FILE = ReaderApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = samax.TestScanner;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bova.ReaderApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -319,7 +321,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		ED764E7D2472E86D00DCEC10 /* Build configuration list for PBXProject "TestScanner" */ = {
+		ED764E7D2472E86D00DCEC10 /* Build configuration list for PBXProject "ReaderApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				ED764E942472E87100DCEC10 /* Debug */,
@@ -328,7 +330,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		ED764E962472E87100DCEC10 /* Build configuration list for PBXNativeTarget "TestScanner" */ = {
+		ED764E962472E87100DCEC10 /* Build configuration list for PBXNativeTarget "ReaderApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				ED764E972472E87100DCEC10 /* Debug */,

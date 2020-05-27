@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:TestScanner.xcodeproj">
+      location = "self:ReaderApp.xcodeproj">
    </FileRef>
 </Workspace>
