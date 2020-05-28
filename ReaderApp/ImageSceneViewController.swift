@@ -240,10 +240,12 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     }
     
     private func processImage(image: UIImage?) {
-        guard let uiImage = image else {
+        guard var uiImage = image else {
             showError(message: "Couldn't load image!")
             return
         }
+        
+        uiImage = uiImage.fixOrientation()
         
         guard let cgImage = uiImage.cgImage else {
             showError(message: "Couldn't retreive image!")

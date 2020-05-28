@@ -46,7 +46,7 @@
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                     </view>
                     <navigationItem key="navigationItem" title="Reader App" id="4xC-eg-c4Z">
-                        <barButtonItem key="rightBarButtonItem" image="photo.on.rectangle" catalog="system" style="plain" id="9uh-cO-i88">
+                        <barButtonItem key="rightBarButtonItem" image="photo.on.rectangle" catalog="system" id="9uh-cO-i88">
                             <color key="tintColor" systemColor="labelColor" cocoaTouchSystemColor="darkTextColor"/>
                             <connections>
                                 <action selector="showCamera:" destination="BYZ-38-t0r" id="zrs-j9-LG8"/>
