@@ -38,9 +38,9 @@ extension UIImage {
 
 extension UIViewController {
 
-    func showToast(message : String) {
+    func showToast(message: String, bottomMargin: CGFloat = 0) {
         let frameWidth = self.view.frame.size.width
-        let toastLabel = UILabel(frame: CGRect(x: frameWidth*0.15, y: self.view.frame.size.height-100, width: frameWidth*0.60, height: 35))
+        let toastLabel = UILabel(frame: CGRect(x: frameWidth*0.15, y: self.view.frame.size.height-100-bottomMargin, width: frameWidth*0.60, height: 35))
         toastLabel.backgroundColor = UIColor.darkGray.withAlphaComponent(0.6)
         toastLabel.textColor = UIColor.white
         toastLabel.font = UIFont.systemFont(ofSize: 14.0)

@@ -22,11 +22,15 @@ class ResultSceneViewController: UIViewController {
     }
     
     @IBAction func copyText(_ sender: Any) {
+        guard let text = textView.text else { return }
+        
         UIPasteboard.general.string = text
-        showToast(message: "Text copied to clipboard")
+        showToast(message: "Text copied to clipboard", bottomMargin: textView.contentInset.bottom)
     }
     
     @IBAction func shareText(_ sender: Any) {
+        guard let text = textView.text else { return }
+        
         let activityViewController = UIActivityViewController(activityItems: [ text ], applicationActivities: nil)
         activityViewController.popoverPresentationController?.sourceView = self.view
 
