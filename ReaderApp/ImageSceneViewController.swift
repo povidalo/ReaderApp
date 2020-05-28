@@ -10,10 +10,11 @@ import UIKit
 import Vision
 import VisionKit
 
-class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
+class ImageSceneViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
 
     var textRecognitionRequest = VNRecognizeTextRequest()
     @IBOutlet fileprivate weak var imageView: TouchableImageView!
+    @IBOutlet fileprivate weak var doneBtn: UIButton!
     
     private let textRecognitionWorkQueue = DispatchQueue(label: "TextRecognitionQueue",
     qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
@@ -27,8 +28,13 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
     
     private var scaledImageWidth: CGFloat = 0.0
     private var scaledImageHeight: CGFloat = 0.0
-    private var latestObservations: [VNRecognizedTextObservation:Bool]?
-    private var latestObservationViews: [VNRecognizedTextObservation:UIView]?
+    private var latestObservations: [VNRecognizedTextObservation]?
+    private var latestObservationsStates: [ObservationState]?
+    
+    struct ObservationState {
+        var selected = false
+        let view: UIView!
+    }
     
     let documentCameraViewController = VNDocumentCameraViewController()
     override func viewDidLoad() {
@@ -67,6 +73,32 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         present(photoSourcePicker, animated: true)
     }
     
+    @IBAction func done(_ sender: Any) {
+        guard let observations = latestObservations else { return }
+        guard let observationsStates = latestObservationsStates else { return }
+        
+        var text = ""
+        var anySelected = false
+        for (index, observation) in observations.enumerated() {
+            let state = observationsStates[index]
+            if !state.selected { continue }
+            anySelected = true
+            guard let candidate = observation.topCandidates(1).first else { continue }
+            
+            text += candidate.string + "\n"
+        }
+        
+        if anySelected {
+            performSegue(withIdentifier: "showResult", sender: text)
+        }
+    }
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if segue.identifier == "showResult", let text = sender as? String, let resultViewController = segue.destination as? ResultSceneViewController {
+            resultViewController.text = text
+        }
+    }
+    
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
         if scan.pageCount > 0 {
             processImage(image: scan.imageOfPage(at: 0))
@@ -89,11 +121,15 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
                 return
             }
             
-            var latestObservations = [VNRecognizedTextObservation:Bool]()
+            var validObservations = [VNRecognizedTextObservation]()
             for observation in observations {
-                latestObservations[observation] = false
+                if observation.topCandidates(1).first == nil {
+                    continue
+                }
+                validObservations.append(observation)
             }
-            strongSelf.latestObservations = latestObservations
+            
+            strongSelf.latestObservations = validObservations
         }
         textRecognitionRequest.recognitionLevel = .accurate
         let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
@@ -113,38 +149,42 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         for view in annotationOverlayView.subviews {
             view.removeFromSuperview()
         }
-        var views = [VNRecognizedTextObservation:UIView]()
-        for (observation, _) in observations {
+        var states = [ObservationState]()
+        for observation in observations {
             if observation.topCandidates(1).first == nil {
                 continue
             }
             
             let rectangleView = UIView(frame: getObservationOnImageViewPos(observation))
             rectangleView.layer.cornerRadius = 3
-            views[observation] = rectangleView
+            states.append(ObservationState(view: rectangleView))
             annotationOverlayView.addSubview(rectangleView)
         }
-        latestObservationViews = views
+        latestObservationsStates = states
     }
     
     private func updateObservations() {
-        guard let observations = latestObservations else { return }
-        guard let observationViews = latestObservationViews else { return }
+        guard let observationsStates = latestObservationsStates else {
+            doneBtn.isHidden = true
+            return
+        }
         
-        for (observation, selected) in observations {
-            guard let rectangleView = observationViews[observation] else { continue }
-            if selected {
-                rectangleView.alpha = 0.3
-                rectangleView.backgroundColor = UIColor.red
-                rectangleView.layer.borderWidth = 0
-                rectangleView.layer.borderColor = UIColor.clear.cgColor
+        var anySelected = false
+        for state in observationsStates {
+            if state.selected {
+                anySelected = true
+                state.view.alpha = 0.3
+                state.view.backgroundColor = UIColor.red
+                state.view.layer.borderWidth = 0
+                state.view.layer.borderColor = UIColor.clear.cgColor
             } else {
-                rectangleView.alpha = 1
-                rectangleView.backgroundColor = UIColor.clear
-                rectangleView.layer.borderWidth = 1
-                rectangleView.layer.borderColor = UIColor.red.cgColor
+                state.view.alpha = 1
+                state.view.backgroundColor = UIColor.clear
+                state.view.layer.borderWidth = 1
+                state.view.layer.borderColor = UIColor.red.cgColor
             }
         }
+        doneBtn.isHidden = !anySelected
     }
     
     private func getObservationOnImageViewPos(_ observation: VNRecognizedTextObservation) -> CGRect {
@@ -156,18 +196,20 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
         return CGRect(x: box.minX * scaledImageWidth + paddingX, y: (1 - box.maxY) * scaledImageHeight + paddingY, width: box.width * scaledImageWidth, height: box.height * scaledImageHeight)
     }
     
-    private func getObservationAtPoint(_ point: CGPoint?) -> VNRecognizedTextObservation? {
-        guard let observations = latestObservations else { return nil }
+    private func getObservationsAtPoint(_ point: CGPoint?) -> [Int] {
+        var res = [Int]()
+        
+        guard let observations = latestObservations else { return res }
         
         if point != nil {
-            for (observation, _) in observations {
+            for (index, observation) in observations.enumerated() {
                 let box = getObservationOnImageViewPos(observation)
                 if box.contains(point!) {
-                    return observation
+                    res.append(index)
                 }
             }
         }
-        return nil
+        return res
     }
     
     private func presentPhotoPicker(sourceType: UIImagePickerController.SourceType) {
@@ -231,16 +273,22 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
     private var latestSelectionState: Bool?
     
     private func onImageViewTouch(_ point: CGPoint) {
-        guard var observations = latestObservations else { return }
+        guard var observationsStates = latestObservationsStates else { return }
         
-        let lastObservation = getObservationAtPoint(latestTouch)
-        let newObservation = getObservationAtPoint(point)
+        let lastObservations = getObservationsAtPoint(latestTouch)
+        let newObservations = getObservationsAtPoint(point)
         
-        if lastObservation != newObservation && newObservation != nil {
-            let selectionState = latestSelectionState ?? !(observations[newObservation!] ?? false)
-            if selectionState != observations[newObservation!] {
-                observations[newObservation!] = selectionState
-                latestObservations = observations
+        if lastObservations != newObservations && newObservations.count > 0 {
+            let selectionState = latestSelectionState ?? !observationsStates[newObservations[0]].selected
+            var updatedObservations = false
+            for index in newObservations {
+                if selectionState != observationsStates[index].selected {
+                    observationsStates[index].selected = selectionState
+                    updatedObservations = true
+                }
+            }
+            if updatedObservations {
+                latestObservationsStates = observationsStates
                 updateObservations()
             }
             latestSelectionState = selectionState
@@ -255,7 +303,7 @@ class ViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
     }
 }
 
-extension ViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+extension ImageSceneViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
         picker.dismiss(animated: true)
