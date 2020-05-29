@@ -68,11 +68,13 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             self.navigationController?.pushViewController(self.documentCameraViewController, animated: true)
         }
         
-        let choosePhoto = UIAlertAction(title: "Gallery", style: .default) { [unowned self] _ in
+        let choosePhoto = UIAlertAction(title: "Photo Library", style: .default) { [unowned self] _ in
             self.presentPhotoPicker(sourceType: .photoLibrary)
         }
         
-        let photoSourcePicker = UIAlertController()
+        let photoSourcePicker = UIAlertController(title: "Choose a photo of a text",
+                                                  message: "or scan it with document scanner",
+                                                  preferredStyle: .actionSheet)
         photoSourcePicker.addAction(takePhoto)
         photoSourcePicker.addAction(scanDocument)
         photoSourcePicker.addAction(choosePhoto)
