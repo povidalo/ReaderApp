@@ -59,14 +59,22 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             presentPhotoPicker(sourceType: .photoLibrary)
             return
         }
-        let photoSourcePicker = UIAlertController()
+        
         let takePhoto = UIAlertAction(title: "Camera", style: .default) { [unowned self] _ in
+            self.presentPhotoPicker(sourceType: .camera)
+        }
+        
+        let scanDocument = UIAlertAction(title: "Document scanner", style: .default) { [unowned self] _ in
             self.navigationController?.pushViewController(self.documentCameraViewController, animated: true)
         }
-        let choosePhoto = UIAlertAction(title: "Photos Library", style: .default) { [unowned self] _ in
+        
+        let choosePhoto = UIAlertAction(title: "Gallery", style: .default) { [unowned self] _ in
             self.presentPhotoPicker(sourceType: .photoLibrary)
         }
+        
+        let photoSourcePicker = UIAlertController()
         photoSourcePicker.addAction(takePhoto)
+        photoSourcePicker.addAction(scanDocument)
         photoSourcePicker.addAction(choosePhoto)
         photoSourcePicker.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
         
