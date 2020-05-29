@@ -109,10 +109,10 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
         if scan.pageCount > 0 {
-            processImage(image: scan.imageOfPage(at: 0))
+            processImage(image: scan.imageOfPage(at: scan.pageCount-1))
             controller.navigationController?.popViewController(animated: true)
             if scan.pageCount > 1 {
-                showError(message: "Selected more than 1 image. Only first one will be processed.")
+                showError(message: "Selected more than 1 image. Only the last one will be processed.")
             }
         } else {
             showError(message: "No images selected")
