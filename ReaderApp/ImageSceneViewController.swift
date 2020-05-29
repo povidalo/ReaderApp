@@ -161,8 +161,7 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         
         if index >= observations.count-1 { return nil }
         
-        //let observedBox = observations[index].boundingBox
-        let observedBoxMiddle = (observations[index].boundingBox.minY + observations[index].boundingBox.maxY) / 2
+        let observedBox = observations[index].boundingBox
         
         for i in index+1..<observations.count {
             let observation = observations[i]
@@ -171,9 +170,10 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             let box = observation.boundingBox
             if observation.topCandidates(1).first == nil { continue }
             
-            if (observedBoxMiddle < box.maxY && observedBoxMiddle > box.minY) {
-            //if (observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < //observedBox.maxY && box.minY > observedBox.minY) {
+            if box.minX >= observedBox.maxX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
                 return observation
+            } else {
+                return nil
             }
         }
         
@@ -186,8 +186,7 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         guard let observations = latestObservations else { return nil }
         guard let observationsStates = latestObservationsStates else { return nil }
         
-        //let observedBox = observations[index].boundingBox
-        let observedBoxMiddle = (observations[index].boundingBox.minY + observations[index].boundingBox.maxY) / 2
+        let observedBox = observations[index].boundingBox
         
         for i in (0...(index-1)).reversed() {
             let observation = observations[i]
@@ -196,9 +195,10 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             let box = observation.boundingBox
             if observation.topCandidates(1).first == nil { continue }
             
-            if (observedBoxMiddle < box.maxY && observedBoxMiddle > box.minY) {
-            //if (observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < //observedBox.maxY && box.minY > observedBox.minY) {
+            if box.maxX <= observedBox.minX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
                 return observation
+            } else {
+                return nil
             }
         }
         
