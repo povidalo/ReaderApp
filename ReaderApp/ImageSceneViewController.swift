@@ -3,75 +3,31 @@
 //  ReaderApp
 //
 //  Created by Kirill on 18.05.2020.
-//  Copyright © 2020 Samax. All rights reserved.
+//  Copyright © 2020 BOVA llc. All rights reserved.
 //
 
 import UIKit
-import Vision
 import VisionKit
 
 class ImageSceneViewController: UIViewController, VNDocumentCameraViewControllerDelegate {
 
-    var textRecognitionRequest = VNRecognizeTextRequest()
-    @IBOutlet fileprivate weak var imageView: TouchableImageView!
+    private let documentCameraViewController = VNDocumentCameraViewController()
+    
+    @IBOutlet fileprivate weak var textRecognizingImageView: TextRecognizingImageView!
     @IBOutlet fileprivate weak var activityIndicator: UIActivityIndicatorView!
     @IBOutlet fileprivate weak var bigImgSelectBtn: UIButton!
     @IBOutlet fileprivate weak var doneBtn: UIButton!
     
-    private lazy var annotationOverlayView: UIView = {
-        precondition(isViewLoaded)
-        let annotationOverlayView = UIView(frame: .zero)
-        annotationOverlayView.translatesAutoresizingMaskIntoConstraints = false
-        return annotationOverlayView
-    }()
-    
-    private var scaledImageWidth: CGFloat = 0.0
-    private var scaledImageHeight: CGFloat = 0.0
-    private var latestObservations: [VNRecognizedTextObservation]?
-    private var latestObservationsStates: [ObservationState]?
-    
-    struct ObservationState {
-        var selected = false
-        let view: UIView!
-    }
-    
-    let documentCameraViewController = VNDocumentCameraViewController()
     override func viewDidLoad() {
         super.viewDidLoad()
         self.navigationController?.setNavigationBarHidden(false, animated: true)
         
         documentCameraViewController.delegate = self
         
-        imageView.addSubview(annotationOverlayView)
-        NSLayoutConstraint.activate([
-          annotationOverlayView.topAnchor.constraint(equalTo: imageView.topAnchor),
-          annotationOverlayView.leadingAnchor.constraint(equalTo: imageView.leadingAnchor),
-          annotationOverlayView.trailingAnchor.constraint(equalTo: imageView.trailingAnchor),
-          annotationOverlayView.bottomAnchor.constraint(equalTo: imageView.bottomAnchor),
-        ])
-        imageView.onTounchCallback = onImageViewTouch
-        imageView.onTounchCancelCallback = onImageViewCancelTouch
-        
-        textRecognitionRequest = VNRecognizeTextRequest { [weak self] (request, error) in
-            guard let strongSelf = self else { return }
-
-            guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                strongSelf.latestObservations = nil
-                strongSelf.showError(message: "The observations are of an unexpected type.")
-                return
-            }
-
-            var validObservations = [VNRecognizedTextObservation]()
-            for observation in observations {
-                if observation.topCandidates(1).first == nil {
-                    continue
-                }
-                validObservations.append(observation)
-            }
-
-            strongSelf.latestObservations = validObservations
-       }
-        textRecognitionRequest.recognitionLevel = .accurate
+        textRecognizingImageView.initialize()
+        textRecognizingImageView.selectionStateChanged = selectionStateChanged
+        textRecognizingImageView.processingStateChanged = processingStateChanged
+        textRecognizingImageView.onError = showError
     }
     
     @IBAction func showCamera(_ sender: Any) {
@@ -104,125 +60,17 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     }
     
     @IBAction func done(_ sender: Any) {
-        guard let observations = latestObservations else { return }
-        guard let observationsStates = latestObservationsStates else { return }
-        
-        var leftBorder: CGFloat? = nil
-        var rightBorder: CGFloat? = nil
-        var minSymbWidth: CGFloat? = nil
-        for (index, observation) in observations.enumerated() {
-            let state = observationsStates[index]
-            if !state.selected { continue }
-            guard let candidate = observation.topCandidates(1).first else { continue }
-            
-            let box = observation.boundingBox
-            let symbWidth = box.width / CGFloat(candidate.string.count)
-            
-            if leftBorder == nil || leftBorder! > box.minX {
-                leftBorder = box.minX
-            }
-            if rightBorder == nil || rightBorder! < box.maxX {
-                rightBorder = box.maxX
-            }
-            if minSymbWidth == nil || minSymbWidth! > symbWidth {
-                minSymbWidth = symbWidth
-            }
-        }
-        
-        var text = ""
-        var anySelected = false
-        var lastLineHadWordWrap = false
-        for (index, observation) in observations.enumerated() {
-            let state = observationsStates[index]
-            if !state.selected { continue }
-            anySelected = true
-            let box = observation.boundingBox
-            guard let candidate = observation.topCandidates(1).first else { continue }
-            
-            let ogigLine = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            var line = ogigLine
-            
-            var hasWordWrap = false
-            if observationAtRight(index) == nil {
-                if line[(line.count-1)...(line.count-1)] == "-" {
-                    hasWordWrap = true
-                    line = line[0...(line.count-2)]
-                }
-                if box.maxX < rightBorder! - minSymbWidth! * 3 {
-                    line += "\n\n"
-                }
-            }
-            if text != "" {
-                if observationAtLeft(index) == nil {
-                    if text[(text.count-1)...(text.count-1)] != "\n" {
-                        if box.minX > leftBorder! + minSymbWidth! * 3 {
-                            text += "\n\n"
-                        } else if !lastLineHadWordWrap {
-                            text += " "
-                        }
-                    }
-                } else {
-                    text += " "
-                }
-            }
-            
-            lastLineHadWordWrap = hasWordWrap
-            text += line
-        }
-        
-        if anySelected {
-            performSegue(withIdentifier: "showResult", sender: text)
+        if textRecognizingImageView.hasAnySelected() {
+            performSegue(withIdentifier: "showResult", sender: textRecognizingImageView.getText())
         }
     }
     
-    private func observationAtRight(_ index: Int) -> VNRecognizedTextObservation? {
-        guard let observations = latestObservations else { return nil }
-        guard let observationsStates = latestObservationsStates else { return nil }
-        
-        if index >= observations.count-1 { return nil }
-        
-        let observedBox = observations[index].boundingBox
-        
-        for i in index+1..<observations.count {
-            let observation = observations[i]
-            let state = observationsStates[i]
-            if !state.selected { continue }
-            let box = observation.boundingBox
-            if observation.topCandidates(1).first == nil { continue }
-            
-            if box.minX >= observedBox.maxX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
-                return observation
-            } else {
-                return nil
-            }
-        }
-        
-        return nil
+    private func selectionStateChanged(selected: Bool) {
+        doneBtn.isHidden = !selected
     }
     
-    private func observationAtLeft(_ index: Int) -> VNRecognizedTextObservation? {
-        if index <= 0 { return nil }
-        
-        guard let observations = latestObservations else { return nil }
-        guard let observationsStates = latestObservationsStates else { return nil }
-        
-        let observedBox = observations[index].boundingBox
-        
-        for i in (0...(index-1)).reversed() {
-            let observation = observations[i]
-            let state = observationsStates[i]
-            if !state.selected { continue }
-            let box = observation.boundingBox
-            if observation.topCandidates(1).first == nil { continue }
-            
-            if box.maxX <= observedBox.minX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
-                return observation
-            } else {
-                return nil
-            }
-        }
-        
-        return nil
+    private func processingStateChanged(processing: Bool) {
+        activityIndicator.isHidden = !processing
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -243,95 +91,6 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         }
     }
     
-    func recognizeText(from image: CGImage) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
-            do {
-                try requestHandler.perform([self.textRecognitionRequest])
-            } catch {
-                DispatchQueue.main.async {
-                    self.showError(message: error.localizedDescription)
-                }
-            }
-            
-            DispatchQueue.main.async {
-                self.createObservationViews()
-                self.updateObservations()
-            }
-        }
-    }
-    
-    private func createObservationViews() {
-        for view in annotationOverlayView.subviews {
-            view.removeFromSuperview()
-        }
-        
-        guard let observations = latestObservations else { return }
-        
-        var states = [ObservationState]()
-        for observation in observations {
-            if observation.topCandidates(1).first == nil {
-                continue
-            }
-            
-            let rectangleView = UIView(frame: getObservationOnImageViewPos(observation))
-            rectangleView.layer.cornerRadius = 3
-            states.append(ObservationState(view: rectangleView))
-            annotationOverlayView.addSubview(rectangleView)
-        }
-        latestObservationsStates = states
-        activityIndicator.isHidden = true
-    }
-    
-    private func updateObservations() {
-        guard let observationsStates = latestObservationsStates else {
-            doneBtn.isHidden = true
-            return
-        }
-        
-        var anySelected = false
-        for state in observationsStates {
-            if state.selected {
-                anySelected = true
-                state.view.alpha = 0.3
-                state.view.backgroundColor = UIColor.blue
-                state.view.layer.borderWidth = 0
-                state.view.layer.borderColor = UIColor.clear.cgColor
-            } else {
-                state.view.alpha = 0.8
-                state.view.backgroundColor = UIColor.clear
-                state.view.layer.borderWidth = 1
-                state.view.layer.borderColor = UIColor.blue.cgColor
-            }
-        }
-        doneBtn.isHidden = !anySelected
-    }
-    
-    private func getObservationOnImageViewPos(_ observation: VNRecognizedTextObservation) -> CGRect {
-        let paddingX = (CGFloat(imageView.bounds.size.width) - CGFloat(scaledImageWidth)) / 2.0
-        let paddingY = (CGFloat(imageView.bounds.size.height) - CGFloat(scaledImageHeight)) / 2.0
-        
-        let box = observation.boundingBox
-        
-        return CGRect(x: box.minX * scaledImageWidth + paddingX, y: (1 - box.maxY) * scaledImageHeight + paddingY, width: box.width * scaledImageWidth, height: box.height * scaledImageHeight)
-    }
-    
-    private func getObservationsAtPoint(_ point: CGPoint?) -> [Int] {
-        var res = [Int]()
-        
-        guard let observations = latestObservations else { return res }
-        
-        if point != nil {
-            for (index, observation) in observations.enumerated() {
-                let box = getObservationOnImageViewPos(observation)
-                if box.contains(point!) {
-                    res.append(index)
-                }
-            }
-        }
-        return res
-    }
-    
     private func presentPhotoPicker(sourceType: UIImagePickerController.SourceType) {
         let picker = UIImagePickerController()
         picker.delegate = self
@@ -339,48 +98,16 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         present(picker, animated: true)
     }
     
-    private func updateImageView(with image: UIImage) {
-        let imageViewRatio = imageView.bounds.size.width / imageView.bounds.size.height
-        let imageRatio = image.size.width / image.size.height
-        
-        if (imageRatio < imageViewRatio) {
-            scaledImageHeight = imageView.bounds.size.height
-            scaledImageWidth = image.size.width * scaledImageHeight / image.size.height
-        } else {
-            scaledImageWidth = imageView.bounds.size.width
-            scaledImageHeight = image.size.height * scaledImageWidth / image.size.width
-        }
-        DispatchQueue.global(qos: .userInitiated).async {
-            var scaledImage = image.scaledImage(with: CGSize(width: self.scaledImageWidth, height: self.scaledImageHeight))
-            scaledImage = scaledImage ?? image
-            guard let finalImage = scaledImage else { return }
-            DispatchQueue.main.async {
-                self.imageView.image = finalImage
-            }
-        }
-    }
-    
     private func processImage(image: UIImage?) {
-        guard var uiImage = image else {
+        guard let uiImage = image else {
             showError(message: "Couldn't load image!")
             return
         }
         
-        uiImage = uiImage.fixOrientation()
-        
-        guard let cgImage = uiImage.cgImage else {
-            showError(message: "Couldn't retreive image!")
-            return
-        }
-        
-        imageView.isHidden = false
+        textRecognizingImageView.image = uiImage
+        textRecognizingImageView.isHidden = false
         bigImgSelectBtn.isHidden = true
         activityIndicator.isHidden = false
-        latestObservations = nil
-        latestObservationsStates = nil
-        createObservationViews()
-        updateImageView(with: uiImage)
-        recognizeText(from: cgImage)
     }
     
     private func showError(message: String) {
@@ -396,39 +123,6 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         )
         resultsAlertController.popoverPresentationController?.sourceView = self.view
         present(resultsAlertController, animated: true, completion: nil)
-    }
-    
-    private var latestTouch: CGPoint?
-    private var latestSelectionState: Bool?
-    
-    private func onImageViewTouch(_ point: CGPoint) {
-        guard var observationsStates = latestObservationsStates else { return }
-        
-        let lastObservations = getObservationsAtPoint(latestTouch)
-        let newObservations = getObservationsAtPoint(point)
-        
-        if lastObservations != newObservations && newObservations.count > 0 {
-            let selectionState = latestSelectionState ?? !observationsStates[newObservations[0]].selected
-            var updatedObservations = false
-            for index in newObservations {
-                if selectionState != observationsStates[index].selected {
-                    observationsStates[index].selected = selectionState
-                    updatedObservations = true
-                }
-            }
-            if updatedObservations {
-                latestObservationsStates = observationsStates
-                updateObservations()
-            }
-            latestSelectionState = selectionState
-        }
-        
-        latestTouch = point
-    }
-    
-    private func onImageViewCancelTouch() {
-        latestTouch = nil
-        latestSelectionState = nil
     }
 }
 

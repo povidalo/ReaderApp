@@ -25,7 +25,7 @@
                                     <action selector="showCamera:" destination="BYZ-38-t0r" eventType="touchUpInside" id="1BA-0n-Pjv"/>
                                 </connections>
                             </button>
-                            <imageView hidden="YES" clipsSubviews="YES" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="0qd-68-XUq" customClass="TouchableImageView" customModule="ReaderApp" customModuleProvider="target">
+                            <imageView hidden="YES" clipsSubviews="YES" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="0qd-68-XUq" customClass="TextRecognizingImageView" customModule="ReaderApp" customModuleProvider="target">
                                 <rect key="frame" x="0.0" y="88" width="414" height="808"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxX="YES" heightSizable="YES" flexibleMaxY="YES"/>
                                 <edgeInsets key="layoutMargins" top="0.0" left="0.0" bottom="0.0" right="0.0"/>
@@ -63,7 +63,7 @@
                         <outlet property="activityIndicator" destination="wHk-DM-jZf" id="bh0-pl-ahh"/>
                         <outlet property="bigImgSelectBtn" destination="wFE-X1-jEk" id="GI8-Ch-vfB"/>
                         <outlet property="doneBtn" destination="wOv-3V-4IU" id="y3A-gU-6lu"/>
-                        <outlet property="imageView" destination="0qd-68-XUq" id="hXF-DV-L9L"/>
+                        <outlet property="textRecognizingImageView" destination="0qd-68-XUq" id="mwl-rt-eNH"/>
                         <segue destination="3GR-cu-V8h" kind="show" identifier="showResult" id="BrP-2E-5Jd"/>
                     </connections>
                 </viewController>
