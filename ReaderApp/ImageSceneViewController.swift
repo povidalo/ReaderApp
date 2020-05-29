@@ -14,10 +14,9 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
 
     var textRecognitionRequest = VNRecognizeTextRequest()
     @IBOutlet fileprivate weak var imageView: TouchableImageView!
+    @IBOutlet fileprivate weak var activityIndicator: UIActivityIndicatorView!
+    @IBOutlet fileprivate weak var bigImgSelectBtn: UIButton!
     @IBOutlet fileprivate weak var doneBtn: UIButton!
-    
-    private let textRecognitionWorkQueue = DispatchQueue(label: "TextRecognitionQueue",
-    qos: .userInitiated, attributes: [], autoreleaseFrequency: .workItem)
     
     private lazy var annotationOverlayView: UIView = {
         precondition(isViewLoaded)
@@ -52,6 +51,27 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         ])
         imageView.onTounchCallback = onImageViewTouch
         imageView.onTounchCancelCallback = onImageViewCancelTouch
+        
+        textRecognitionRequest = VNRecognizeTextRequest { [weak self] (request, error) in
+            guard let strongSelf = self else { return }
+
+            guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                strongSelf.latestObservations = nil
+                strongSelf.showError(message: "The observations are of an unexpected type.")
+                return
+            }
+
+            var validObservations = [VNRecognizedTextObservation]()
+            for observation in observations {
+                if observation.topCandidates(1).first == nil {
+                    continue
+                }
+                validObservations.append(observation)
+            }
+
+            strongSelf.latestObservations = validObservations
+       }
+        textRecognitionRequest.recognitionLevel = .accurate
     }
     
     @IBAction func showCamera(_ sender: Any) {
@@ -224,43 +244,30 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     }
     
     func recognizeText(from image: CGImage) {
-        let textRecognitionRequest = VNRecognizeTextRequest { [weak self] (request, error) in
-            guard let strongSelf = self else { return }
-            
-            guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                strongSelf.latestObservations = nil
-                strongSelf.showError(message: "The observations are of an unexpected type.")
-                return
-            }
-            
-            var validObservations = [VNRecognizedTextObservation]()
-            for observation in observations {
-                if observation.topCandidates(1).first == nil {
-                    continue
+        DispatchQueue.global(qos: .userInitiated).async {
+            let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
+            do {
+                try requestHandler.perform([self.textRecognitionRequest])
+            } catch {
+                DispatchQueue.main.async {
+                    self.showError(message: error.localizedDescription)
                 }
-                validObservations.append(observation)
             }
             
-            strongSelf.latestObservations = validObservations
+            DispatchQueue.main.async {
+                self.createObservationViews()
+                self.updateObservations()
+            }
         }
-        textRecognitionRequest.recognitionLevel = .accurate
-        let requestHandler = VNImageRequestHandler(cgImage: image, options: [:])
-        do {
-            try requestHandler.perform([textRecognitionRequest])
-        } catch {
-            showError(message: error.localizedDescription)
-        }
-        
-        createObservationViews()
-        updateObservations()
     }
     
     private func createObservationViews() {
-        guard let observations = latestObservations else { return }
-        
         for view in annotationOverlayView.subviews {
             view.removeFromSuperview()
         }
+        
+        guard let observations = latestObservations else { return }
+        
         var states = [ObservationState]()
         for observation in observations {
             if observation.topCandidates(1).first == nil {
@@ -273,6 +280,7 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             annotationOverlayView.addSubview(rectangleView)
         }
         latestObservationsStates = states
+        activityIndicator.isHidden = true
     }
     
     private func updateObservations() {
@@ -286,14 +294,14 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             if state.selected {
                 anySelected = true
                 state.view.alpha = 0.3
-                state.view.backgroundColor = UIColor.red
+                state.view.backgroundColor = UIColor.blue
                 state.view.layer.borderWidth = 0
                 state.view.layer.borderColor = UIColor.clear.cgColor
             } else {
-                state.view.alpha = 1
+                state.view.alpha = 0.8
                 state.view.backgroundColor = UIColor.clear
                 state.view.layer.borderWidth = 1
-                state.view.layer.borderColor = UIColor.red.cgColor
+                state.view.layer.borderColor = UIColor.blue.cgColor
             }
         }
         doneBtn.isHidden = !anySelected
@@ -365,6 +373,12 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             return
         }
         
+        imageView.isHidden = false
+        bigImgSelectBtn.isHidden = true
+        activityIndicator.isHidden = false
+        latestObservations = nil
+        latestObservationsStates = nil
+        createObservationViews()
         updateImageView(with: uiImage)
         recognizeText(from: cgImage)
     }
