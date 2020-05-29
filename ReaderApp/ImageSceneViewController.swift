@@ -87,20 +87,122 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         guard let observations = latestObservations else { return }
         guard let observationsStates = latestObservationsStates else { return }
         
+        var leftBorder: CGFloat? = nil
+        var rightBorder: CGFloat? = nil
+        var minSymbWidth: CGFloat? = nil
+        for (index, observation) in observations.enumerated() {
+            let state = observationsStates[index]
+            if !state.selected { continue }
+            guard let candidate = observation.topCandidates(1).first else { continue }
+            
+            let box = observation.boundingBox
+            let symbWidth = box.width / CGFloat(candidate.string.count)
+            
+            if leftBorder == nil || leftBorder! > box.minX {
+                leftBorder = box.minX
+            }
+            if rightBorder == nil || rightBorder! < box.maxX {
+                rightBorder = box.maxX
+            }
+            if minSymbWidth == nil || minSymbWidth! > symbWidth {
+                minSymbWidth = symbWidth
+            }
+        }
+        
         var text = ""
         var anySelected = false
+        var lastLineHadWordWrap = false
         for (index, observation) in observations.enumerated() {
             let state = observationsStates[index]
             if !state.selected { continue }
             anySelected = true
+            let box = observation.boundingBox
             guard let candidate = observation.topCandidates(1).first else { continue }
             
-            text += candidate.string + "\n"
+            let ogigLine = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            var line = ogigLine
+            
+            var hasWordWrap = false
+            if observationAtRight(index) == nil {
+                if line[(line.count-1)...(line.count-1)] == "-" {
+                    hasWordWrap = true
+                    line = line[0...(line.count-2)]
+                }
+                if box.maxX < rightBorder! - minSymbWidth! * 3 {
+                    line += "\n\n"
+                }
+            }
+            if text != "" {
+                if observationAtLeft(index) == nil {
+                    if text[(text.count-1)...(text.count-1)] != "\n" {
+                        if box.minX > leftBorder! + minSymbWidth! * 3 {
+                            text += "\n\n"
+                        } else if !lastLineHadWordWrap {
+                            text += " "
+                        }
+                    }
+                } else {
+                    text += " "
+                }
+            }
+            
+            lastLineHadWordWrap = hasWordWrap
+            text += line
         }
         
         if anySelected {
             performSegue(withIdentifier: "showResult", sender: text)
         }
+    }
+    
+    private func observationAtRight(_ index: Int) -> VNRecognizedTextObservation? {
+        guard let observations = latestObservations else { return nil }
+        guard let observationsStates = latestObservationsStates else { return nil }
+        
+        if index >= observations.count-1 { return nil }
+        
+        //let observedBox = observations[index].boundingBox
+        let observedBoxMiddle = (observations[index].boundingBox.minY + observations[index].boundingBox.maxY) / 2
+        
+        for i in index+1..<observations.count {
+            let observation = observations[i]
+            let state = observationsStates[i]
+            if !state.selected { continue }
+            let box = observation.boundingBox
+            if observation.topCandidates(1).first == nil { continue }
+            
+            if (observedBoxMiddle < box.maxY && observedBoxMiddle > box.minY) {
+            //if (observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < //observedBox.maxY && box.minY > observedBox.minY) {
+                return observation
+            }
+        }
+        
+        return nil
+    }
+    
+    private func observationAtLeft(_ index: Int) -> VNRecognizedTextObservation? {
+        if index <= 0 { return nil }
+        
+        guard let observations = latestObservations else { return nil }
+        guard let observationsStates = latestObservationsStates else { return nil }
+        
+        //let observedBox = observations[index].boundingBox
+        let observedBoxMiddle = (observations[index].boundingBox.minY + observations[index].boundingBox.maxY) / 2
+        
+        for i in (0...(index-1)).reversed() {
+            let observation = observations[i]
+            let state = observationsStates[i]
+            if !state.selected { continue }
+            let box = observation.boundingBox
+            if observation.topCandidates(1).first == nil { continue }
+            
+            if (observedBoxMiddle < box.maxY && observedBoxMiddle > box.minY) {
+            //if (observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < //observedBox.maxY && box.minY > observedBox.minY) {
+                return observation
+            }
+        }
+        
+        return nil
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
