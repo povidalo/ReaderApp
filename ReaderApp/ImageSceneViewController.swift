@@ -228,14 +228,15 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     }
     
     private func updateImageView(with image: UIImage) {
-        let orientation = UIApplication.shared.windows.first?.windowScene?.interfaceOrientation ?? .unknown
-        switch orientation {
-            case .landscapeLeft, .landscapeRight:
-                scaledImageHeight = imageView.bounds.size.height
-                scaledImageWidth = image.size.width * scaledImageHeight / image.size.height
-            default:
-                scaledImageWidth = imageView.bounds.size.width
-                scaledImageHeight = image.size.height * scaledImageWidth / image.size.width
+        let imageViewRatio = imageView.bounds.size.width / imageView.bounds.size.height
+        let imageRatio = image.size.width / image.size.height
+        
+        if (imageRatio < imageViewRatio) {
+            scaledImageHeight = imageView.bounds.size.height
+            scaledImageWidth = image.size.width * scaledImageHeight / image.size.height
+        } else {
+            scaledImageWidth = imageView.bounds.size.width
+            scaledImageHeight = image.size.height * scaledImageWidth / image.size.width
         }
         DispatchQueue.global(qos: .userInitiated).async {
             var scaledImage = image.scaledImage(with: CGSize(width: self.scaledImageWidth, height: self.scaledImageHeight))
