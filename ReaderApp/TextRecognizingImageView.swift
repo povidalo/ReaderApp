@@ -81,6 +81,7 @@ class TextRecognizingImageView : UIImageView {
                 if observation.topCandidates(1).first == nil {
                     continue
                 }
+                
                 validObservations.append(observation)
             }
 
@@ -96,10 +97,13 @@ class TextRecognizingImageView : UIImageView {
         var leftBorder: CGFloat? = nil
         var rightBorder: CGFloat? = nil
         var minSymbWidth: CGFloat? = nil
+        var selectedIndicies = [Int]()
         for (index, observation) in observations.enumerated() {
             let state = observationsStates[index]
             if !state.selected { continue }
             guard let candidate = observation.topCandidates(1).first else { continue }
+            
+            selectedIndicies.append(index)
             
             let box = observation.boundingBox
             let symbWidth = box.width / CGFloat(candidate.string.count)
@@ -115,11 +119,12 @@ class TextRecognizingImageView : UIImageView {
             }
         }
         
+        selectedIndicies = tryReorderObservations(selectedIndicies)
+        
         var text = ""
         var lastLineHadWordWrap = false
-        for (index, observation) in observations.enumerated() {
-            let state = observationsStates[index]
-            if !state.selected { continue }
+        for (i, index) in selectedIndicies.enumerated() {
+            let observation = observations[index]
             let box = observation.boundingBox
             guard let candidate = observation.topCandidates(1).first else { continue }
             
@@ -127,7 +132,7 @@ class TextRecognizingImageView : UIImageView {
             var line = ogigLine
             
             var hasWordWrap = false
-            if observationAtRight(index) == nil {
+            if observationAtRight(i, selectedIndicies) == nil {
                 if line[(line.count-1)...(line.count-1)] == "-" {
                     hasWordWrap = true
                     line = line[0...(line.count-2)]
@@ -137,7 +142,7 @@ class TextRecognizingImageView : UIImageView {
                 }
             }
             if text != "" {
-                if observationAtLeft(index) == nil {
+                if observationAtLeft(i, selectedIndicies) == nil {
                     if text[(text.count-1)...(text.count-1)] != "\n" {
                         if box.minX > leftBorder! + minSymbWidth! * 3 {
                             text += "\n\n"
@@ -166,6 +171,31 @@ class TextRecognizingImageView : UIImageView {
             }
         }
         return false
+    }
+    
+    private func tryReorderObservations(_ indicies: [Int]) -> [Int] {
+        guard let observations = latestObservations else { return indicies }
+        
+        return indicies.sorted(by: { (lhs, rhs) -> Bool in
+            let lBox = observations[lhs].boundingBox
+            let rBox = observations[rhs].boundingBox
+            
+            if (lBox.minX > rBox.minX && lBox.minX < rBox.maxX) || (lBox.maxX > rBox.minX && lBox.maxX < rBox.maxX) || (rBox.minX < lBox.maxX && rBox.minX > lBox.minX) {
+                return lBox.maxY > rBox.maxY
+            } else {
+                if (lBox.minY > rBox.minY && lBox.minY < rBox.maxY) || (lBox.maxY > rBox.minY && lBox.maxY < rBox.maxY) || (rBox.minY < lBox.maxY && rBox.minY > lBox.minY) {
+                    let intersectionHeight = min(lBox.maxY, rBox.maxY) - max(lBox.minY, rBox.minY)
+                    let intersectionPercent = min(intersectionHeight / lBox.height, intersectionHeight / rBox.height)
+                    if intersectionPercent > 0.15 {
+                        return lBox.minX < rBox.minX
+                    } else {
+                        return lBox.maxY > rBox.maxY
+                    }
+                } else {
+                    return lBox.maxY > rBox.maxY
+                }
+            }
+        })
     }
     
     private func updateImageView(with image: UIImage) {
@@ -254,20 +284,16 @@ class TextRecognizingImageView : UIImageView {
         selectionStateChanged?(anySelected)
     }
     
-    private func observationAtRight(_ index: Int) -> VNRecognizedTextObservation? {
+    private func observationAtRight(_ indexI: Int, _ selectedIndicies: [Int]) -> VNRecognizedTextObservation? {
         guard let observations = latestObservations else { return nil }
-        guard let observationsStates = latestObservationsStates else { return nil }
         
-        if index >= observations.count-1 { return nil }
+        if indexI >= selectedIndicies.count-1 { return nil }
         
-        let observedBox = observations[index].boundingBox
+        let observedBox = observations[selectedIndicies[indexI]].boundingBox
         
-        for i in index+1..<observations.count {
-            let observation = observations[i]
-            let state = observationsStates[i]
-            if !state.selected { continue }
+        for i in indexI+1..<selectedIndicies.count {
+            let observation = observations[selectedIndicies[i]]
             let box = observation.boundingBox
-            if observation.topCandidates(1).first == nil { continue }
             
             if box.minX >= observedBox.maxX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
                 return observation
@@ -279,20 +305,16 @@ class TextRecognizingImageView : UIImageView {
         return nil
     }
     
-    private func observationAtLeft(_ index: Int) -> VNRecognizedTextObservation? {
-        if index <= 0 { return nil }
+    private func observationAtLeft(_ indexI: Int, _ selectedIndicies: [Int]) -> VNRecognizedTextObservation? {
+        if indexI <= 0 { return nil }
         
         guard let observations = latestObservations else { return nil }
-        guard let observationsStates = latestObservationsStates else { return nil }
         
-        let observedBox = observations[index].boundingBox
+        let observedBox = observations[selectedIndicies[indexI]].boundingBox
         
-        for i in (0...(index-1)).reversed() {
-            let observation = observations[i]
-            let state = observationsStates[i]
-            if !state.selected { continue }
+        for i in (0...(indexI-1)).reversed() {
+            let observation = observations[selectedIndicies[i]]
             let box = observation.boundingBox
-            if observation.topCandidates(1).first == nil { continue }
             
             if box.maxX <= observedBox.minX && ((observedBox.minY > box.minY && observedBox.minY < box.maxY) || (observedBox.maxY > box.minY && observedBox.maxY < box.maxY) || (box.minY < observedBox.maxY && box.minY > observedBox.minY)) {
                 return observation
