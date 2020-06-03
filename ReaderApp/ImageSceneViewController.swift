@@ -61,7 +61,26 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
     
     @IBAction func done(_ sender: Any) {
         if textRecognizingImageView.hasAnySelected() {
-            performSegue(withIdentifier: "showResult", sender: textRecognizingImageView.getText())
+            let sortPicker = UIAlertController(title: "Choose sort",
+                                               message: "sort will affect text blocks order",
+                                               preferredStyle: .actionSheet)
+            
+            sortPicker.addAction(UIAlertAction(title: "Line-by-line (most recent sort version)", style: .default) { [unowned self] _ in
+                self.performSegue(withIdentifier: "showResult", sender:
+                    self.textRecognizingImageView.getText(TextRecognizingImageView.SortType.LINEAR))
+            })
+            sortPicker.addAction(UIAlertAction(title: "XY sort (as in v1.0.1(4))", style: .default) { [unowned self] _ in
+                self.performSegue(withIdentifier: "showResult", sender:
+                    self.textRecognizingImageView.getText(TextRecognizingImageView.SortType.XY))
+            })
+            sortPicker.addAction(UIAlertAction(title: "Original (Vision style)", style: .default) { [unowned self] _ in
+                self.performSegue(withIdentifier: "showResult", sender:
+                    self.textRecognizingImageView.getText(TextRecognizingImageView.SortType.ORIGINAL))
+            })
+            
+            sortPicker.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+            
+            present(sortPicker, animated: true)
         }
     }
     

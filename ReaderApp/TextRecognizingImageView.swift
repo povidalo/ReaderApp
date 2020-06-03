@@ -47,6 +47,10 @@ class TextRecognizingImageView : UIImageView {
         }
     }
     
+    public enum SortType {
+        case ORIGINAL, XY, LINEAR, XY_LINEAR
+    }
+    
     private struct ObservationState {
         var selected = false
         let view: UIView!
@@ -90,7 +94,7 @@ class TextRecognizingImageView : UIImageView {
         textRecognitionRequest.recognitionLevel = .accurate
     }
     
-    public func getText() -> String {
+    public func getText(_ sort: SortType) -> String {
         guard let observations = latestObservations else { return "" }
         guard let observationsStates = latestObservationsStates else { return "" }
         
@@ -119,7 +123,7 @@ class TextRecognizingImageView : UIImageView {
             }
         }
         
-        selectedIndicies = tryReorderObservations(selectedIndicies)
+        selectedIndicies = tryReorderObservations(selectedIndicies, sort)
         
         var text = ""
         var lastLineHadWordWrap = false
@@ -127,24 +131,30 @@ class TextRecognizingImageView : UIImageView {
             let observation = observations[index]
             let box = observation.boundingBox
             guard let candidate = observation.topCandidates(1).first else { continue }
+            let nextCandidate = i < selectedIndicies.count-1 ? observations[selectedIndicies[i+1]].topCandidates(1).first : nil
+            
             
             let ogigLine = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
             var line = ogigLine
+            let nextLine = nextCandidate != nil ? nextCandidate!.string.trimmingCharacters(in: .whitespacesAndNewlines) : ""
             
             var hasWordWrap = false
             if observationAtRight(i, selectedIndicies) == nil {
-                if line[(line.count-1)...(line.count-1)] == "-" {
+                let lastSymbol = line[(line.count-1)...(line.count-1)]
+                if lastSymbol == "-" {
                     hasWordWrap = true
                     line = line[0...(line.count-2)]
                 }
-                if box.maxX < rightBorder! - minSymbWidth! * 3 {
+                
+                if box.maxX < rightBorder! - minSymbWidth! * 3 && (lastSymbol == "." || lastSymbol == "?" || lastSymbol == "!" || (nextLine.count > 0 && nextLine.first!.isUppercase)) {
                     line += "\n\n"
                 }
             }
             if text != "" {
                 if observationAtLeft(i, selectedIndicies) == nil {
-                    if text[(text.count-1)...(text.count-1)] != "\n" {
-                        if box.minX > leftBorder! + minSymbWidth! * 3 {
+                    let lastSymbol = text[(text.count-1)...(text.count-1)]
+                    if lastSymbol != "\n" {
+                        if box.minX > leftBorder! + minSymbWidth! * 3 && (lastSymbol == "." || lastSymbol == "?" || lastSymbol == "!" || (line.count > 0 && line.first!.isUppercase)) {
                             text += "\n\n"
                         } else if !lastLineHadWordWrap {
                             text += " "
@@ -173,29 +183,91 @@ class TextRecognizingImageView : UIImageView {
         return false
     }
     
-    private func tryReorderObservations(_ indicies: [Int]) -> [Int] {
+    private func tryReorderObservations(_ indicies: [Int], _ sort: SortType) -> [Int] {
         guard let observations = latestObservations else { return indicies }
         
-        return indicies.sorted(by: { (lhs, rhs) -> Bool in
-            let lBox = observations[lhs].boundingBox
-            let rBox = observations[rhs].boundingBox
-            
-            if (lBox.minX > rBox.minX && lBox.minX < rBox.maxX) || (lBox.maxX > rBox.minX && lBox.maxX < rBox.maxX) || (rBox.minX < lBox.maxX && rBox.minX > lBox.minX) {
-                return lBox.maxY > rBox.maxY
-            } else {
-                if (lBox.minY > rBox.minY && lBox.minY < rBox.maxY) || (lBox.maxY > rBox.minY && lBox.maxY < rBox.maxY) || (rBox.minY < lBox.maxY && rBox.minY > lBox.minY) {
-                    let intersectionHeight = min(lBox.maxY, rBox.maxY) - max(lBox.minY, rBox.minY)
-                    let intersectionPercent = min(intersectionHeight / lBox.height, intersectionHeight / rBox.height)
-                    if intersectionPercent > 0.15 {
-                        return lBox.minX < rBox.minX
+        switch sort {
+        case .XY:
+            return indicies.sorted(by: { (lhs, rhs) -> Bool in
+                let lBox = observations[lhs].boundingBox
+                let rBox = observations[rhs].boundingBox
+                
+                if (lBox.minX > rBox.minX && lBox.minX < rBox.maxX) || (lBox.maxX > rBox.minX && lBox.maxX < rBox.maxX) || (rBox.minX < lBox.maxX && rBox.minX > lBox.minX) {
+                    return lBox.maxY > rBox.maxY
+                } else {
+                    if (lBox.minY > rBox.minY && lBox.minY < rBox.maxY) || (lBox.maxY > rBox.minY && lBox.maxY < rBox.maxY) || (rBox.minY < lBox.maxY && rBox.minY > lBox.minY) {
+                        let intersectionHeight = min(lBox.maxY, rBox.maxY) - max(lBox.minY, rBox.minY)
+                        let intersectionPercent = min(intersectionHeight / lBox.height, intersectionHeight / rBox.height)
+                        if intersectionPercent > 0.15 {
+                            return lBox.minX < rBox.minX
+                        } else {
+                            return lBox.maxY > rBox.maxY
+                        }
                     } else {
                         return lBox.maxY > rBox.maxY
                     }
-                } else {
-                    return lBox.maxY > rBox.maxY
+                }
+            })
+        case .LINEAR:
+            var sorted = [Int]()
+            var modifiedIndicies = indicies
+            var nextIndex = 0
+            while (modifiedIndicies.count > 0) {
+                let newBox = observations[modifiedIndicies[nextIndex]].boundingBox
+                var trueNextIndexDist = CGFloat(10.0)
+                var trueNextIndex = nextIndex
+                let combinedIndicies = modifiedIndicies + sorted
+                for (i, index) in combinedIndicies.enumerated() {
+                    if i == nextIndex { continue }
+                    let prevBox = observations[index].boundingBox
+                    let dist = newBox.minX - prevBox.maxX
+                    let symbWidth = getSymbWidth(observations[index], observations[modifiedIndicies[nextIndex]])
+                    if dist >= -symbWidth && abs(dist) < abs(trueNextIndexDist) && ((newBox.minY > prevBox.minY && newBox.minY < prevBox.maxY) || (newBox.maxY > prevBox.minY && newBox.maxY < prevBox.maxY) || (prevBox.minY < newBox.maxY && prevBox.minY > newBox.minY)) {
+                        trueNextIndexDist = dist
+                        trueNextIndex = i
+                    }
+                }
+                if trueNextIndex >= modifiedIndicies.count {
+                    trueNextIndex = nextIndex
+                }
+                
+                sorted.append(modifiedIndicies[trueNextIndex])
+                modifiedIndicies.remove(at: trueNextIndex)
+                
+                let lastBox = observations[sorted[sorted.count-1]].boundingBox
+                nextIndex = 0
+                var nextIndexDist = CGFloat(10.0)
+                for (i, index) in modifiedIndicies.enumerated() {
+                    let nextBox = observations[index].boundingBox
+                    let dist = nextBox.minX - lastBox.maxX
+                    let symbWidth = getSymbWidth(observations[index], observations[sorted[sorted.count-1]])
+                    if dist >= -symbWidth && abs(dist) < abs(nextIndexDist) && ((lastBox.minY > nextBox.minY && lastBox.minY < nextBox.maxY) || (lastBox.maxY > nextBox.minY && lastBox.maxY < nextBox.maxY) || (nextBox.minY < lastBox.maxY && nextBox.minY > lastBox.minY)) {
+                        nextIndexDist = dist
+                        nextIndex = i
+                    }
                 }
             }
-        })
+            return sorted
+        case .XY_LINEAR:
+            return tryReorderObservations(tryReorderObservations(indicies, .XY), .LINEAR)
+        default:
+            return indicies
+        }
+    }
+    
+    private func getSymbWidth(_ observations: VNRecognizedTextObservation...) -> CGFloat {
+        var width = CGFloat(0)
+        var foundValid = false
+        for observation in observations {
+            guard let candidate = observation.topCandidates(1).first else { continue }
+            if candidate.string.count <= 0 { continue }
+            let w = observation.boundingBox.width / CGFloat(candidate.string.count)
+            if !foundValid || width < w {
+                width = w
+                foundValid = true
+            }
+        }
+        return width > 0 ? width : CGFloat(0)
     }
     
     private func updateImageView(with image: UIImage) {
