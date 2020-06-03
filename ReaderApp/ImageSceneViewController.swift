@@ -56,6 +56,12 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
         photoSourcePicker.addAction(choosePhoto)
         photoSourcePicker.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
         
+        if let popoverController = photoSourcePicker.popoverPresentationController {
+            popoverController.sourceView = self.view
+            popoverController.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
+            popoverController.permittedArrowDirections = []
+        }
+        
         present(photoSourcePicker, animated: true)
     }
     
@@ -79,6 +85,12 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             })
             
             sortPicker.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+            
+            if let popoverController = sortPicker.popoverPresentationController {
+                popoverController.sourceView = self.view
+                popoverController.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
+                popoverController.permittedArrowDirections = []
+            }
             
             present(sortPicker, animated: true)
         }
@@ -123,10 +135,10 @@ class ImageSceneViewController: UIViewController, VNDocumentCameraViewController
             return
         }
         
-        textRecognizingImageView.image = uiImage
         textRecognizingImageView.isHidden = false
         bigImgSelectBtn.isHidden = true
         activityIndicator.isHidden = false
+        textRecognizingImageView.image = uiImage
     }
     
     private func showError(message: String) {

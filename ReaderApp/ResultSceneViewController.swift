@@ -7,8 +7,6 @@
 //
 
 import UIKit
-import Vision
-import VisionKit
 
 class ResultSceneViewController: UIViewController {
     
